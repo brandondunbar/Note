@@ -24,7 +24,6 @@ def load():
             notes = pickle.load(file_object)
             return notes
     except FileNotFoundError:
-        print("serial_notes.pickle not found. First run?")
         return {}
 
 
