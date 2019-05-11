@@ -23,6 +23,7 @@ def load():
         with open('serial_notes.pickle', "rb") as file_object:
             notes = pickle.load(file_object)
             return notes
+
     except FileNotFoundError:
         return {}
 
