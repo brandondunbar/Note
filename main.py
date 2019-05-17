@@ -16,8 +16,8 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 
 from kivy.uix.button import Button
-from kivy.uix.scrollview import ScrollView
 from kivy.uix.label import Label
+from kivy.uix.scrollview import ScrollView
 from kivy.uix.textinput import TextInput
 from kivy.uix.widget import WidgetException
 
@@ -29,6 +29,7 @@ import note_manager
 from note_class import Note
 
 config = configparser.ConfigParser()
+__version__ = 'v1.0.0'
 
 
 # App-wide variables:
@@ -45,9 +46,12 @@ class Settings:
         colors = self.settings["Colors"]
 
         # Assign colors to attributes
-        self.text_color = [float(color) for color in colors["Text Color"][1:-1].split(",")]
-        self.app_bg_color = [float(color) for color in colors["App Bg Color"][1:-1].split(",")]
-        self.textinput_color = [float(color) for color in colors["TextInput Color"][1:-1].split(",")]
+        self.text_color = [float(color) for color in
+                           colors["Text Color"][1:-1].split(",")]
+        self.app_bg_color = [float(color) for color in
+                             colors["App Bg Color"][1:-1].split(",")]
+        self.textinput_color = [float(color) for color in
+                                colors["TextInput Color"][1:-1].split(",")]
 
         self.window_color = self.app_bg_color
 
@@ -245,10 +249,11 @@ class MenuScreen(Screen):
 
         if len(AppVariables.notes.items()) > 0:
             for notebook_name, notebook in AppVariables.notes.items():
+                bg_color = app_settings.textinput_color
                 notebook_btn = Button(text=notebook_name,
                                       size_hint=(1, None),
                                       background_normal='',
-                                      background_color=app_settings.textinput_color,
+                                      background_color=bg_color,
                                       color=app_settings.text_color,
                                       id=notebook_name)
                 self.notebooks.add_widget(notebook_btn)
@@ -272,7 +277,7 @@ class NewNotebookScreen(Screen):
 
         # Container------------------------------------------------------------
         screen_container = BoxLayout(orientation="vertical",
-                                     padding=[1])
+                                     spacing=5)
 
         # *Top Bar-------------------------------------------------------------
         screen_container.add_widget(TopBar())
@@ -283,9 +288,9 @@ class NewNotebookScreen(Screen):
                                            size_hint=(1, .5)))
 
         # *Notebook Name Entry-------------------------------------------------
-        self.nb_name = CustomTextInput(hint_text="Notebook Name...",
-                                       multiline=False,
-                                       size_hint=(1, .085),)
+        self.nb_name = TextInput(hint_text="Notebook Name...",
+                                 multiline=False,
+                                 size_hint=(1, .085),)
         self.nb_name.bind(on_text_validate=self.save)
         content_container.add_widget(self.nb_name)
 
@@ -330,8 +335,8 @@ class NotebookScreen(Screen):
         super(NotebookScreen, self).__init__(**kwargs)
 
         # Container------------------------------------------------------------
-        self.notebook_container = BoxLayout(orientation="vertical",
-                                            padding=[1])
+        self.screen_container = BoxLayout(orientation="vertical",
+                                          spacing=5)
 
         # *Top Bar-------------------------------------------------------------
         #       New Button
@@ -343,7 +348,11 @@ class NotebookScreen(Screen):
         delete_btn = Button(text="|||")
         delete_btn.bind(on_release=self.delete)
         #       Pack
-        self.notebook_container.add_widget(TopBar(new_btn, delete_btn))
+        self.screen_container.add_widget(TopBar(new_btn, delete_btn))
+
+        # *Screen Content------------------------------------------------------
+        self.content_container = BoxLayout(orientation="vertical",
+                                           spacing=2)
 
         # *Active Notebook Label-----------------------------------------------
         active_nb = ''
@@ -353,16 +362,17 @@ class NotebookScreen(Screen):
         self.current_notebook = Label(text=active_nb,
                                       color=app_settings.textinput_color,
                                       size_hint=(1, .1))
-        self.notebook_container.add_widget(self.current_notebook)
+        self.content_container.add_widget(self.current_notebook)
         self.no_note_lbl = Label(text="No notes to display")
 
         # *Note Container------------------------------------------------------
         self.notes = BoxLayout(orientation="vertical",
-                               spacing=1)
-        self.notebook_container.add_widget(self.notes)
+                               spacing=2)
+        self.content_container.add_widget(self.notes)
+        self.screen_container.add_widget(self.content_container)
 
         # Pack
-        self.add_widget(self.notebook_container)
+        self.add_widget(self.screen_container)
         # Update widgets on screen entry
         self.bind(on_enter=self.update_widgets)
 
@@ -443,8 +453,8 @@ class EditNoteScreen(Screen):
         super(EditNoteScreen, self).__init__(**kwargs)
 
         # Container------------------------------------------------------------
-        self.note_container = BoxLayout(orientation="vertical",
-                                        spacing=5)
+        self.editnote_container = BoxLayout(orientation="vertical",
+                                            spacing=5)
 
         # *Top Bar-------------------------------------------------------------
 
@@ -465,54 +475,37 @@ class EditNoteScreen(Screen):
                             size_hint=(.15, 1))
         delete_btn.bind(on_release=self.delete)
 
-        self.note_container.add_widget(TopBar(back_btn, delete_btn))
+        self.editnote_container.add_widget(TopBar(back_btn, delete_btn))
 
-        # *Current Notebook Label----------------------------------------------
-        active_nb = ''
-        if AppVariables.active_notebook is not None:
-            active_nb = AppVariables.active_notebook
-
-        self.current_notebook = Label(text=active_nb,
-                                      color=app_settings.textinput_color,
-                                      size_hint=(1, .1))
-        self.note_container.add_widget(self.current_notebook)
+        # *Note Screen Container-----------------------------------------------
+        self.note_container = BoxLayout(orientation="vertical",
+                                        spacing=2,
+                                        padding=[5])
 
         # *Note Name-----------------------------------------------------------
-        name_container = BoxLayout(size_hint_y=.1)
-
-        #       Buffer
-        name_container.add_widget(Label(size_hint_x=.025))
 
         #       Name Text Input
         self.note_name_ti = CustomTextInput(hint_text="Untitled",
                                             font_size=18,
                                             multiline=False,
                                             write_tab=False,
-                                            size_hint=(1, 1),
+                                            size_hint=(1, .09),
                                             padding=(10, 10))
-        name_container.add_widget(self.note_name_ti)
 
-        #       Buffer
-        name_container.add_widget(Label())
-
-        self.note_container.add_widget(name_container)
+        self.note_container.add_widget(self.note_name_ti)
         self._name = 'Untitled'  # This is the default title for notes
 
         # *Note Body-----------------------------------------------------------
         body_container = BoxLayout()
 
-        #       Buffer
-        body_container.add_widget(LabelButton(size_hint_x=.01))
-
         #       The ScrollView
-
         self.body_scroll = ScrollView(size_hint=(1, 1),
                                       size=(1, 1),
                                       bar_color=app_settings.text_color,
                                       bar_pos_y='right', )
 
         #       Body TextInput Widget
-        self.notebody_textinput = CustomTextInput(hint_text="Enter note body...",
+        self.notebody_textinput = CustomTextInput(hint_text="Enter note body",
                                                   multiline=True,
                                                   size_hint_y=None,
                                                   padding=(10, 10))
@@ -525,24 +518,18 @@ class EditNoteScreen(Screen):
 
         body_container.add_widget(self.body_scroll)
 
-        #       Buffer
-        body_container.add_widget(LabelButton(size_hint_x=.01))
-
         self.note_container.add_widget(body_container)
 
-        #       Buffer
-        self.note_container.add_widget(Label(size_hint_y=.005))
-
         # *Pack----------------------------------------------------------------
-        self.add_widget(self.note_container)
+        self.editnote_container.add_widget(self.note_container)
+        self.add_widget(self.editnote_container)
 
-        # *Edit or New?--------------------------------------------------------
-        self.bind(on_enter=self.load)
+        # *Load on enter, save on exit-----------------------------------------
+        self.bind(on_enter=self.load,
+                  on_pre_leave=self.save)
 
     def back(self, *args):
         """Method for back button, saves the note."""
-
-        self.save()
 
         sm.current = 'notebook'
 
@@ -557,8 +544,9 @@ class EditNoteScreen(Screen):
                 self._name = self.note_name_ti.text
 
             if AppVariables.active_note is None:  # If we're adding a new note
+                # Create a new Note object
                 note = Note(name=self._name,
-                            body=self.notebody_textinput.text.strip())  # Create a new Note object
+                            body=self.notebody_textinput.text.strip())
                 notebook.append(note)  # Add it to the notebook
                 AppVariables.active_note = note  # Set it as active
 
@@ -566,8 +554,10 @@ class EditNoteScreen(Screen):
                 # Find note and overwrite it
                 for index, item in enumerate(notebook):
                     if item.name.strip() == AppVariables.active_note.name:
-                        notebook[index].name = self.note_name_ti.text
-                        notebook[index].body = self.notebody_textinput.text.strip()
+                        # assign the note to a readable variable
+                        note = notebook[index]
+                        note.name = self.note_name_ti.text
+                        note.body = self.notebody_textinput.text.strip()
 
             self.note_name_ti.text = ''
             self.notebody_textinput.text = ''
@@ -582,9 +572,6 @@ class EditNoteScreen(Screen):
         to a crappy resizing while typing behavior. Working on a better
         solution.
         """
-
-        self.current_notebook.text = AppVariables.active_notebook
-        self.current_notebook.color = app_settings.textinput_color
 
         if AppVariables.active_note is not None:
             self.note_name_ti.text = AppVariables.active_note.name
@@ -611,8 +598,13 @@ class EditNoteScreen(Screen):
                 AppVariables.active_note = None
                 sm.current = 'notebook'
 
+    def test_method(self, *args):
+        print(args)
+
     def textinput_height(self, *args):
-        self.notebody_textinput.height = max(self.notebody_textinput.minimum_height, self.body_scroll.height)
+        max_var = max(self.notebody_textinput.minimum_height,
+                      self.body_scroll.height)
+        self.notebody_textinput.height = max_var
 
 
 class SettingsScreen(Screen):
@@ -620,6 +612,9 @@ class SettingsScreen(Screen):
 
     def __init__(self, **kwargs):
         super(SettingsScreen, self).__init__(**kwargs)
+
+        textinput_color = app_settings.textinput_color
+        bg_color = app_settings.app_bg_color
 
         # Container------------------------------------------------------------
         screen_cntnr = BoxLayout(orientation='vertical',
@@ -634,7 +629,7 @@ class SettingsScreen(Screen):
         #       Back Button
         back_btn = Button(text="<-",
                           background_normal='',
-                          background_color=app_settings.app_bg_color,
+                          background_color=bg_color,
                           color=app_settings.text_color,
                           size_hint=(.15, 1),
                           id="Back")
@@ -652,40 +647,45 @@ class SettingsScreen(Screen):
         #       Text Color
         primary_label = Label(text='Text Color: ',
                               color=app_settings.text_color,
-                              size_hint=(1, .05))
+                              size_hint=(1, .15))
+
         self.primary_ti = CustomTextInput(text=str(app_settings.text_color),
                                           multiline=False,
-                                          size_hint=(1, .05))
+                                          size_hint=(1, .15))
+
         #       Bind
         self.settings_cntnr.add_widget(primary_label)
         self.settings_cntnr.add_widget(self.primary_ti)
 
-        #       Secondary
+        #       Background Color-----------------------------------------------
         secondary_label = Label(text='App Background Color: ',
                                 color=app_settings.text_color,
-                                size_hint=(1, .05))
-        self.secondary_ti = CustomTextInput(text=str(app_settings.app_bg_color),
+                                size_hint=(1, .15))
+        self.secondary_ti = CustomTextInput(text=str(bg_color),
                                             multiline=False,
-                                            size_hint=(1, .05))
+                                            size_hint=(1, .15))
         #       Bind
         self.settings_cntnr.add_widget(secondary_label)
         self.settings_cntnr.add_widget(self.secondary_ti)
 
-        #       Tertiary
-        tertiary_label = Label(text='Tertiary Color: ',
+        #       TextInput------------------------------------------------------
+        tertiary_label = Label(text='Input Color: ',
                                color=app_settings.text_color,
-                               size_hint=(1, .05))
-        self.tertiary_ti = CustomTextInput(text=str(app_settings.textinput_color),
+                               size_hint=(1, .15))
+        self.tertiary_ti = CustomTextInput(text=str(textinput_color),
                                            multiline=False,
-                                           size_hint=(1, .05))
+                                           size_hint=(1, .15))
         #       Bind
         self.settings_cntnr.add_widget(tertiary_label)
         self.settings_cntnr.add_widget(self.tertiary_ti)
 
+        # *Buffer------------------------------------------------------------
+        self.settings_cntnr.add_widget(Label())
+
         # *Default Button----------------------------------------------------
         self.default_button = Button(text="Reset to Default",
                                      background_normal='',
-                                     background_color=app_settings.app_bg_color,
+                                     background_color=bg_color,
                                      color=app_settings.text_color,
                                      size_hint=(1, .5))
         self.default_button.bind(on_release=self.set_default)
@@ -695,6 +695,9 @@ class SettingsScreen(Screen):
 
         screen_cntnr.add_widget(contents_cntnr)
         self.add_widget(screen_cntnr)
+
+    def on_color(self, *args):
+        print(args)
 
     def back(self, *args):
         """Method for leaving the screen, saves on exit."""
