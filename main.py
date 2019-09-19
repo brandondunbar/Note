@@ -26,9 +26,10 @@ import os
 
 # My scripts:
 import note_manager
+from note_class import Note
 
 config = configparser.ConfigParser()
-__version__ = 'v1.1.0'
+__version__ = 'v1.0.0'
 
 
 # App-wide variables:
@@ -97,22 +98,10 @@ class Settings:
 class AppVariables:
     """Non-global global variables."""
 
-    def __init__(self):
-        self.default_colors = [[0, 1, 1, 1],
-                               [0, 0, 0, 1],
-                               [.25, .25, .25, 1]]
-        self.notes = []
-        self.active_notebook = None
-        self.active_note = None
-
-    def get_note_obj(self, obj_id):
-        """Searches notes for object with provided id"""
-
-        for note_obj in self.notes:
-
-            if note_obj[0] == obj_id:
-
-                return note_obj
+    default_colors = [[0, 1, 1, 1], [0, 0, 0, 1], [.25, .25, .25, 1]]
+    notes = note_manager.load()
+    active_notebook = None
+    active_note = None
 
 
 # Redefined widgets:
@@ -216,13 +205,13 @@ class MenuScreen(Screen):
         # *Screen Content------------------------------------------------------
 
         #       Populate Notebooks layout
-        self.notebooks = BoxLayout(size_hint_y=None,
-                                   orientation='vertical',
+        self.notebooks = BoxLayout(orientation='vertical',
                                    spacing=2)
         self.notebooks.bind(minimum_height=self.notebooks.setter('height'))
 
         #       Make scrollable
         self.nb_scroll = ScrollView(size_hint=(1, 1),
+                                    size=(1, 1),
                                     bar_color=app_settings.text_color,
                                     bar_pos_y='right')
         self.nb_scroll.add_widget(self.notebooks)
@@ -241,53 +230,42 @@ class MenuScreen(Screen):
             args[0]: The button object selected, passed automatically."""
 
         if args[0].id == 'New':
-            app_variables.active_notebook = None
+            AppVariables.active_notebook = None
             sm.current = 'newnotebook'
 
         elif args[0].id == 'Settings':
             sm.current = 'settings'
 
         else:
-            app_variables.active_notebook = int(args[0].id)
+            AppVariables.active_notebook = args[0].id
             sm.current = 'notebook'
 
     def load(self, *args):
         """Loads all notebooks when screen loads."""
 
-        app_variables.notes = note_manager.load()
-        print(app_variables.notes)
-
-        app_variables.active_notebook = None
-        app_variables.active_note = None
+        AppVariables.active_notebook = None
+        AppVariables.active_note = None
         self.notebooks.clear_widgets()
 
-        child_note_objs = note_manager.get_children(0)
-
-        if len(child_note_objs) > 0:
-
-            for note_obj in child_note_objs:
-
+        if len(AppVariables.notes.items()) > 0:
+            for notebook_name, notebook in AppVariables.notes.items():
                 bg_color = app_settings.textinput_color
-
-                notebook_btn = Button(text=note_obj[1],
+                notebook_btn = Button(text=notebook_name,
                                       size_hint=(1, None),
                                       background_normal='',
                                       background_color=bg_color,
                                       color=app_settings.text_color,
-                                      id=str(note_obj[0]))
-
+                                      id=notebook_name)
                 self.notebooks.add_widget(notebook_btn)
-
                 notebook_btn.bind(on_press=lambda button:
                                   self.switch_screen(button))
 
             #       Buffer
             self.notebooks.add_widget(Label(text="",
                                             size_hint=(0, 1-(len(
-                                                child_note_objs)*.1))))
+                                            AppVariables.notes.keys())*.1))))
 
         else:
-
             self.notebooks.add_widget(Label(text="No Notebooks to display :("))
 
 
@@ -334,21 +312,17 @@ class NewNotebookScreen(Screen):
 
     def switch_screen(self, *args):
         """A method for switching screens."""
-
         sm.current = 'notebook'
 
     def save(self, *args):
         """Method to properly save the new notebook."""
-
         name = self.nb_name.text
 
         if name:
-
+            AppVariables.notes[name] = []
+            AppVariables.active_notebook = name
             self.nb_name.text = ''
-            note_manager.new_obj(name, "Notebook", 0)
-            app_variables.notes = note_manager.load()
-            app_variables.active_notebook = app_variables.notes[-1][0]
-
+            note_manager.save(AppVariables.notes)
             sm.current = 'notebook'
 
 
@@ -370,7 +344,7 @@ class NotebookScreen(Screen):
                          id="New")
         new_btn.bind(on_release=self.switch_screen)
 
-        #       Delete Button
+        #       Settings Button
         delete_btn = Button(text="|||")
         delete_btn.bind(on_release=self.delete)
         #       Pack
@@ -380,26 +354,21 @@ class NotebookScreen(Screen):
         self.content_container = BoxLayout(orientation="vertical",
                                            spacing=2)
 
-        #       Active Notebook Label
-        self.current_notebook = Label(color=app_settings.textinput_color,
+        # *Active Notebook Label-----------------------------------------------
+        active_nb = ''
+        if AppVariables.active_notebook is not None:
+            active_nb = AppVariables.active_notebook
+
+        self.current_notebook = Label(text=active_nb,
+                                      color=app_settings.textinput_color,
                                       size_hint=(1, .1))
         self.content_container.add_widget(self.current_notebook)
-
         self.no_note_lbl = Label(text="No notes to display")
 
-        #       Note Container
-        self.notes = BoxLayout(size_hint_y=None,
-                               orientation="vertical",
+        # *Note Container------------------------------------------------------
+        self.notes = BoxLayout(orientation="vertical",
                                spacing=2)
-        self.notes.bind(minimum_height=self.notes.setter('height'))
-
-        #       Make scrollable
-        self.note_scroll = ScrollView(size_hint=(1, 1),
-                                      bar_color=app_settings.text_color,
-                                      bar_pos_y='right')
-        self.note_scroll.add_widget(self.notes)
-
-        self.content_container.add_widget(self.note_scroll)
+        self.content_container.add_widget(self.notes)
         self.screen_container.add_widget(self.content_container)
 
         # Pack
@@ -413,11 +382,10 @@ class NotebookScreen(Screen):
         Args:
             args[0]: The button object selected, passed
             automatically.
-            args[1]: The ID of the note to edit, not passed if new note
-        """
+            args[1]: A Note object. Not passed if it's a new note."""
 
         try:
-            app_variables.active_note = args[1]
+            AppVariables.active_note = args[1]
 
         except IndexError:
             pass
@@ -425,71 +393,55 @@ class NotebookScreen(Screen):
         sm.current = 'editnote'
 
     def update_widgets(self, *args):
-        """Populates the notebook container with buttons representing
-            notes."""
+        """Updates the Notebook container"""
 
         def new_note_btn(note):
-            """Returns a button representing a note
+            """Populates the notebook container with buttons representing
+            notes.
 
             Args:
                 note: The note object to represent."""
 
-            note_button = Button(text=note[1],
-                                 size_hint=(1, None),
-                                 background_normal='',
-                                 background_color=app_settings.textinput_color,
-                                 color=app_settings.text_color)
+            note_btn = Button(text=note.name,
+                              size_hint=(1, None),
+                              background_normal='',
+                              background_color=app_settings.textinput_color,
+                              color=app_settings.text_color)
 
-            note_button.bind(on_press=lambda button:
-                             self.switch_screen(button, note[0]))
+            note_btn.bind(on_press=lambda button:
+                          self.switch_screen(button, note))
 
-            return note_button
+            return note_btn
 
-        notebook = app_variables.get_note_obj(app_variables.active_notebook)
-
-        self.current_notebook.text = notebook[1]
+        self.current_notebook.text = AppVariables.active_notebook
         self.current_notebook.color = app_settings.textinput_color
 
-        notebook_children = note_manager.get_children(notebook[0])
-
-        if len(notebook_children) > 0:
-
+        if len(AppVariables.notes[AppVariables.active_notebook]) > 0:
             self.notes.clear_widgets()
 
-            for note in notebook_children:
-
+            for note in AppVariables.notes[AppVariables.active_notebook]:
                 note_btn = new_note_btn(note)
                 self.notes.add_widget(note_btn)
 
             self.notes.add_widget(Label(text=""))
 
         else:  # If there are no notes to display
-
             try:
-
                 self.notes.clear_widgets()
                 self.notes.add_widget(self.no_note_lbl)  # Say so
 
             except WidgetException:
-
                 pass  # WidgetException raised if navigating back to the screen
 
     def delete(self, *args):
         """Method for deleting a notebook"""
-
         notebook_lbl = self.current_notebook
-
         if "Delete" not in notebook_lbl.text:
-
-            notebook_lbl.text = "Delete " + app_variables.get_note_obj(
-                app_variables.active_notebook)[1] + "?"
+            notebook_lbl.text = f"Delete {AppVariables.active_notebook}?"
             notebook_lbl.color = [1, 0, 0, 1]
-
         else:
-
-            note_manager.delete(app_variables.active_notebook)
-            app_variables.notes = note_manager.load()
-
+            del AppVariables.notes[AppVariables.active_notebook]
+            note_manager.save(AppVariables.notes)
             sm.current = 'menu'
 
 
@@ -585,29 +537,32 @@ class EditNoteScreen(Screen):
         """Save the note."""
 
         if self.notebody_textinput.text.strip() != '':
+            # Assign notebook list to variable for readability
+            notebook = AppVariables.notes[AppVariables.active_notebook]
 
             if self.note_name_ti.text != '':
-
                 self._name = self.note_name_ti.text
 
-            if app_variables.active_note is None:  # If we're adding a new note
-
-                # Add note to database
-                note_manager.new_obj(self._name,
-                                     self.notebody_textinput.text.strip(),
-                                     app_variables.active_notebook)
+            if AppVariables.active_note is None:  # If we're adding a new note
+                # Create a new Note object
+                note = Note(name=self._name,
+                            body=self.notebody_textinput.text.strip())
+                notebook.append(note)  # Add it to the notebook
+                AppVariables.active_note = note  # Set it as active
 
             else:  # If we're editing an existing
-
-                note_manager.update_obj(app_variables.active_note,
-                                        name=self._name,
-                                        data=self.notebody_textinput.text)
+                # Find note and overwrite it
+                for index, item in enumerate(notebook):
+                    if item.name.strip() == AppVariables.active_note.name:
+                        # assign the note to a readable variable
+                        note = notebook[index]
+                        note.name = self.note_name_ti.text
+                        note.body = self.notebody_textinput.text.strip()
 
             self.note_name_ti.text = ''
             self.notebody_textinput.text = ''
 
-            # Update note list
-            app_variables.notes = note_manager.load()
+            note_manager.save(AppVariables.notes)
 
     def load(self, *args):
         """
@@ -618,36 +573,35 @@ class EditNoteScreen(Screen):
         solution.
         """
 
-        if app_variables.active_note is not None:
-
-            # Fill the TextInputs with the note data
-            self.note_name_ti.text = app_variables.get_note_obj(
-                app_variables.active_note)[1]
-            self.notebody_textinput.text = app_variables.get_note_obj(
-                app_variables.active_note)[3]
+        if AppVariables.active_note is not None:
+            self.note_name_ti.text = AppVariables.active_note.name
+            self.notebody_textinput.text = AppVariables.active_note.body
 
         else:
-
             self.note_name_ti.text = ''  # New note
             self.notebody_textinput.text = ''
 
     def delete(self, *args):
-        """Deletes Note."""
+        """Deletes Note. If it's a new note, should we clear the TextInput
+        widgets?"""
+        if AppVariables.active_note is not None:  # If this isn't a new note
+            if "Delete" not in self.current_notebook.text:
+                self.current_notebook.text = \
+                    f"Delete {AppVariables.active_note}?"
+                self.current_notebook.color = [1, 0, 0, 1]
+            else:
+                notes = AppVariables.notes[AppVariables.active_notebook]
+                for index, note in enumerate(notes):
+                    if notes[index] == AppVariables.active_note:
+                        del notes[index]
+                        note_manager.save(AppVariables.notes)
+                AppVariables.active_note = None
+                sm.current = 'notebook'
 
-        if app_variables.active_note is not None:  # If this isn't a new note
-
-            note_manager.delete(app_variables.active_note)
-
-            app_variables.notes = note_manager.load()
-            app_variables.active_note = None
-
-            # Hacky workaround to deal with save method
-            self.notebody_textinput.text = ''
-
-        sm.current = 'notebook'
+    def test_method(self, *args):
+        print(args)
 
     def textinput_height(self, *args):
-
         max_var = max(self.notebody_textinput.minimum_height,
                       self.body_scroll.height)
         self.notebody_textinput.height = max_var
@@ -754,9 +708,9 @@ class SettingsScreen(Screen):
     def set_default(self, *args):
         """Reverts color fields to default."""
 
-        primary_default = app_variables.default_colors[0]
-        secondary_default = app_variables.default_colors[1]
-        tertiary_default = app_variables.default_colors[2]
+        primary_default = AppVariables.default_colors[0]
+        secondary_default = AppVariables.default_colors[1]
+        tertiary_default = AppVariables.default_colors[2]
 
         self.primary_ti.text = str(primary_default)
         self.secondary_ti.text = str(secondary_default)
@@ -777,6 +731,8 @@ class SettingsScreen(Screen):
 
             color_list = color
             return color_list
+
+        settings = []
 
         try:
             text_color = parse_color(self.primary_ti.text)
@@ -800,7 +756,6 @@ class SettingsScreen(Screen):
 
 # Instantiate settings for them to take effect
 app_settings = Settings()
-app_variables = AppVariables()
 
 # Screen Manager object manages which screen is visible
 sm = ScreenManager(transition=NoTransition())
